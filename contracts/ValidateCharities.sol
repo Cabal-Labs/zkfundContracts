@@ -47,11 +47,11 @@ contract ValidateCharities {
     modifier onlyOwner() {
         require(msg.sender == owner, "Only Owner Can Do This Action");_;
     }
-    function addValidator(address newValidator) external onlyOwner{
+    function addValidator(address newValidator) external onlyValidator{
         _validatorCount.increment();
         validators[newValidator] = true;
     }
-    function removeValidator(address removingValidator) external onlyOwner{
+    function removeValidator(address removingValidator) external onlyValidator{
         _validatorCount.decrement();
         validators[removingValidator] = false;
     }

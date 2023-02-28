@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "./Counters.sol";
 
 contract CharityRegistry {
 
@@ -128,9 +129,9 @@ contract CharityRegistry {
         require(charity.id != 0, "Charity does not exist");
         require(charity.wallet != address(0), "Charity wallet not set");
         require(_amount <= charity.donationPool, "Amount requested exceeds donation pool");
-        charity.wallet.transfer(_amount);
+        payable(charity.wallet).transfer(_amount);
         charity.donationPool -= _amount;
-        charity.lastReleaseTimestamp = block.timestamp;
+        charity.lastReleaseTimestamp = block.timestamp; //todo: investigate timestamp warning
         emit DonationReleased(_charityId, charity.wallet, _amount);
     }
 
