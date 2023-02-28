@@ -2,11 +2,11 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 //@ts-ignore
 // Wating to end ValidateCharity.sol to add the interface
-import { CharityRegistry, Charity } from "../t";
+
 
 describe("CharityRegistry", function () {
-  let charityRegistry: CharityRegistry;
-  let charity: Charity;
+  let charityRegistry: any;
+  let charity: any;
 
   beforeEach(async function () {
     const VotingContract = await ethers.getContractFactory("VotingContract");
