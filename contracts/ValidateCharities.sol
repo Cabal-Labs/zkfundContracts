@@ -90,6 +90,16 @@ contract ValidateCharities{
         return charities[charityId].status;
     }
     function inititlizeCharity (address walletAddress, string memory name,string memory charityId, bool ownsWallet) public onlyValidator{
+        // require that the charity does not already exist
+        // unit256 numCharities = _charityIds.current();
+        // 
+        // for (uint256 i = 1; i <= numCharities; i++) {
+        //     Charity storage charity = charities[i];
+        //     if (keccak256(bytes(charity.name)) == keccak256(bytes(name)) && charity.wallet == _wallet) {
+        //         revert("Charity already exists");
+        //     }
+        // }
+
         _charityIds.increment();
 
         uint256 newItemId = _charityIds.current();
