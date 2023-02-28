@@ -88,8 +88,8 @@ describe("ValidateCharities", function () {
 		});
 	});
 	describe("Validator Creation", function () {
-		it("should allow a validator to create a new validator", async function () {});
-		it("should prevent a non-validator from creating a validator", async function () {});
+		it("should allow the owner to create a new validator", async function () {});
+		it("should prevent a non-owner from creating a validator", async function () {});
 		it("should prevent a validator from being created twice", async function () {});
 	});
 	describe("Charity Creation", function () {
