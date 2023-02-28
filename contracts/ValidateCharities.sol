@@ -5,7 +5,7 @@ import "./Counters.sol";
 contract ValidateCharities {
     using Counters for Counters.Counter;
     address public owner;
-    // keep a store of who is a validator
+
     mapping (address => bool) public validators;
     mapping (uint256 => CharitySnapshot) public charities;
     Counters.Counter private _validatorCount;
@@ -15,6 +15,10 @@ contract ValidateCharities {
         validators[msg.sender] = true;
         _validatorCount.increment();
     }
+    event CharityCreated(address charityAddress, string name, uint256 charityId);
+    event CharityApproved(address charityAddress, string name, uint256 charityId);
+    event ApproveVote(address validator, uint256 charityId);
+    event DisapproveVote(address validator, uint256 charityId);
     enum CharityStatus {
         Pending, Disapproved, Approved
     }
@@ -23,18 +27,8 @@ contract ValidateCharities {
         uint256 charityId; // from mongodb _id
         address walletAddress; // might not have one, if not it will be address(0)
         bool ownsWallet; // if true, then the wallet address is theirs
-        //if false, they need to generate a wallet, and replace it before they can be validated
         CharityStatus status;
     }
-    // only contains pertainent information to ensure charities are unique, the rest of the information will be stored on the db
-    // when a charity is validated, another contract will be responsible for transferring all the data on chain
-    // persitantly storing ---------------------------
-    // TODO: Look into ARWave
-    // struct Charity {
-        // ... snapshot
-        // all other info (mission, description, ect)
-    // }
-    // -------------------------------------------------
 
     // ========== Validator System ================
     // have a way to require that only validators can do certain things
@@ -42,14 +36,20 @@ contract ValidateCharities {
         return _validatorCount.current();
     }
     modifier onlyValidator() {
-        require(validators[msg.sender] || msg.sender == owner, "Only Validators Can Do This Action");_;
+        require(validators[msg.sender] || msg.sender == owner, "Only validators can do this action");_;
     }
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only Owner Can Do This Action");_;
+        require(msg.sender == owner, "Only owner can do this action");_;
     }
     function addValidator(address newValidator) external onlyValidator{
-        _validatorCount.increment();
-        validators[newValidator] = true;
+        if (validators[newValidator] == false){
+
+            _validatorCount.increment();
+            validators[newValidator] = true;
+        }
+        else{
+            revert("Validator already exists");
+        }
     }
     function removeValidator(address removingValidator) external onlyValidator{
         _validatorCount.decrement();
@@ -57,8 +57,6 @@ contract ValidateCharities {
     }
     // ===========================================
     // ============ Charity Voting System ========
-    event CharityCreated(address charityAddress, string name, uint256 charityId);
-    event CharityApproved(address charityAddress, string name, uint256 charityId);
     // maps a charity to a number of approvedVotes
     mapping (uint256 => uint256) private approveVotes;
     // maps a charity to a nubmer of disapproveVotes
@@ -84,6 +82,12 @@ contract ValidateCharities {
         return charities[charityId].status;
     }
     function initCharity (address walletAddress, string memory name, bool ownsWallet) public onlyValidator{
+        //check if any charity already has this name
+        for (uint256 i = 0; i < _charityIds.current(); i++) {
+            if (keccak256(abi.encodePacked(charities[i].name)) == keccak256(abi.encodePacked(name))){
+                revert("Charity with this name already exists");
+            }
+        }
         _charityIds.increment();
 
         uint256 newItemId = _charityIds.current();
@@ -100,12 +104,14 @@ contract ValidateCharities {
     function voteApprove(uint256 charityId) public onlyValidator notVoted(msg.sender, charityId){
         validatorToCharity[msg.sender][charityId] = true;
         approveVotes[charityId]++;
+        emit ApproveVote(msg.sender, charityId);
         approveCharity(charityId);
     }
 
     function voteDisapprove(uint256 charityId) external onlyValidator notVoted(msg.sender, charityId){
         validatorToCharity[msg.sender][charityId] = true;
         disapproveVotes[charityId]++;
+        emit DisapproveVote(msg.sender, charityId);
         approveCharity(charityId);
     }
     function approveCharity(uint256 charityId) internal returns (bool){

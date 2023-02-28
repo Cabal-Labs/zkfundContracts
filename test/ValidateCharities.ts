@@ -12,35 +12,44 @@ describe("ValidateCharities", function () {
 
 		const _addresses = await ethers.getSigners();
 		const owner = _addresses[0];
-		const testAddresses = _addresses.slice(1);
-		// create a list of 10 charities
-		// const initialCharities = [
-		// 	{
-		// 		name: "Charity 1",
-		// 		walletAddress: ethers.Wallet.createRandom().address,
-		// 		hasWallet: true,
-		// 	},
-		// 	{
-		// 		name: "Charity 2",
-		// 		walletAddress: ethers.Wallet.createRandom().address,
-		// 		hasWallet: true,
-		// 	},
-		// 	{
-		// 		name: "Charity 3",
-		// 		walletAddress: "",
-		// 		hasWallet: false,
-		// 	},
-		// ];
-		// // initialize those charities
-		// for (let i = 0; i < initialCharities.length; i++) {
-		// 	await validateCharities.initCharity(
-		// 		initialCharities[i].name,
-		// 		initialCharities[i].walletAddress,
-		// 		initialCharities[i].hasWallet
-		// 	);
-		// }
+		const testAddresses = _addresses.slice(1, 5);
+		const validatorAddresses = _addresses.slice(5, 10);
+		for (let i = 0; i < validatorAddresses.length; i++) {
+			await validateCharities.addValidator(validatorAddresses[i].address);
+		}
 
-		return { validateCharities, owner, testAddresses };
+		return {
+			validateCharities,
+			owner,
+			testAddresses,
+			validatorAddresses,
+		};
+	}
+	async function populateCharities(initCharity: Function) {
+		const charities = [
+			{
+				charityAddress: ethers.Wallet.createRandom().address,
+				charityName: "Charity 1",
+				hasWallet: true,
+			},
+			{
+				charityAddress: ethers.Wallet.createRandom().address,
+				charityName: "Charity 2",
+				hasWallet: true,
+			},
+			{
+				charityAddress: ethers.Wallet.createRandom().address,
+				charityName: "Charity 3",
+				hasWallet: true,
+			},
+		];
+		for (let i = 0; i < charities.length; i++) {
+			await initCharity(
+				charities[i].charityAddress,
+				charities[i].charityName,
+				charities[i].hasWallet
+			);
+		}
 	}
 	describe("Deployment", function () {
 		it("should return an empty list of charities", async function () {
@@ -66,9 +75,9 @@ describe("ValidateCharities", function () {
 	});
 	describe("Validator Creation", function () {
 		it("should allow the owner to create a new validator", async function () {
-			const { validateCharities, owner } =
+			const { validateCharities, owner, testAddresses } =
 				await deployValidateCharitiesFixture();
-			const newValidator = ethers.Wallet.createRandom().address;
+			const newValidator = testAddresses[1].address;
 			await validateCharities.addValidator(newValidator);
 			expect(await validateCharities.validators(newValidator)).to.equal(true);
 		});
@@ -79,19 +88,90 @@ describe("ValidateCharities", function () {
 
 			await expect(
 				validateCharities.connect(testAddresses[0]).addValidator(newValidator)
-			).to.be.revertedWith("Only Validators Can Do This Action");
+			).to.be.revertedWith("Only validators can do this action");
 		});
-		it("should prevent a validator from being created twice", async function () {});
+		it("should prevent a validator from being created twice", async function () {
+			const { validateCharities, owner, testAddresses } =
+				await deployValidateCharitiesFixture();
+			const newValidator = testAddresses[1].address;
+			await validateCharities.addValidator(newValidator);
+			expect(await validateCharities.validators(newValidator)).to.equal(true);
+			await expect(
+				validateCharities.addValidator(newValidator)
+			).to.be.revertedWith("Validator already exists");
+		});
 	});
 	describe("Charity Creation", function () {
-		it("should allow the any validator to create a charity", async function () {});
-		it("should prevent a non-validator from creating a charity", async function () {});
-		it("should prevent two charities with the same name from being created", async function () {});
+		it("should allow the any validator to create a charity", async function () {
+			const { validateCharities, owner, testAddresses } =
+				await deployValidateCharitiesFixture();
+			const _charityAddress = ethers.Wallet.createRandom().address;
+			const _charityName = "Charity 1";
+			const _hasWallet = true;
+			expect(
+				await validateCharities.initCharity(
+					_charityAddress,
+					_charityName,
+					_hasWallet
+				)
+			)
+				.to.emit(validateCharities, "CharityCreated")
+				.withArgs(_charityAddress, _charityName, _hasWallet);
+		});
+		it("should prevent a non-validator from creating a charity", async function () {
+			const { validateCharities, owner, testAddresses } =
+				await deployValidateCharitiesFixture();
+			const _charityAddress = ethers.Wallet.createRandom().address;
+			const _charityName = "Charity 101";
+			const _hasWallet = true;
+			await expect(
+				validateCharities
+					.connect(testAddresses[0])
+					.initCharity(_charityAddress, _charityName, _hasWallet)
+			).to.be.revertedWith("Only validators can do this action");
+		});
+		it("should prevent two charities with the same name from being created", async function () {
+			const { validateCharities, owner, testAddresses } =
+				await deployValidateCharitiesFixture();
+			const _charityAddress = ethers.Wallet.createRandom().address;
+			const _charityName = "Charity 1";
+			const _hasWallet = true;
+			expect(
+				await validateCharities.initCharity(
+					_charityAddress,
+					_charityName,
+					_hasWallet
+				)
+			)
+				.to.emit(validateCharities, "CharityCreated")
+				.withArgs(_charityAddress, _charityName, _hasWallet);
+			await expect(
+				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet)
+			).to.be.revertedWith("Charity With This Name Already Exists");
+		});
 		it("should prevent two charities with the same address from being created", async function () {});
 	});
 	describe("Voting", function () {
-		it("should allow a validator to vote", async function () {});
-		it("should prevent a non-validator from voting", async function () {});
+		it("should allow a validator to vote", async function () {
+			const { validateCharities, owner } =
+				await deployValidateCharitiesFixture();
+			await populateCharities(validateCharities.initCharity);
+			const charities = await validateCharities.getCharities();
+			const charityId = charities[0].charityId;
+			expect(await validateCharities.voteApprove(charityId))
+				.to.emit(validateCharities, "ApproveVote")
+				.withArgs(owner, charityId);
+		});
+		it("should prevent a non-validator from voting", async function () {
+			const { validateCharities, testAddresses } =
+				await deployValidateCharitiesFixture();
+			await populateCharities(validateCharities.initCharity);
+			const charities = await validateCharities.getCharities();
+			const charityId = charities[0].charityId;
+			await expect(
+				validateCharities.connect(testAddresses[0]).voteApprove(charityId)
+			).to.be.revertedWith("Only validators can do this action");
+		});
 		it("should prevent a validator from voting twice", async function () {});
 		it("should prevent a validator from voting for a charity that doesn't exist", async function () {});
 		it("should prevent a validator from voting for a charity that has already been approved", async function () {});
@@ -99,9 +179,9 @@ describe("ValidateCharities", function () {
 		it("should be able to approve a charity", async function () {});
 		it("should be able to reject a charity", async function () {});
 		it("should prevent a charity from being approved if it has been rejected", async function () {});
+		it("should prevent a charity from being rejected if it has already been rejected", async function () {});
 		it("should prevent a charity from being rejected if it has been approved", async function () {});
 		it("should prevent a charity from being approved if it has already been approved", async function () {});
-		it("should prevent a charity from being rejected if it has already been rejected", async function () {});
 	});
 	describe("Approving/Disapproving Charities", function () {
 		it("should allow a charity with 75% approval and 66% validator turnout to be approved", async function () {});
