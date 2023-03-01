@@ -52,7 +52,7 @@ contract CharityRegistry {
         emit CharityAdded(id, _name, _wallet);
     }
 
-    function updateCharity(uint256 _charityId, string memory _name, address _wallet) public {
+    function updateCharity(uint256 _charityId, string memory _name, address _wallet) public onlyVotingContract {
         Charity storage charity = charities[_charityId];
         require(charity.id != 0, "Charity does not exist");
         charity.name = _name;

@@ -118,13 +118,11 @@ describe("CharityRegistry", function () {
 
     const charities = await validateCharities.getCharities();
     const charityId = charities[1].charityId.toNumber();
-    console.log(charities[1]);
+  
 
     expect(await validateCharities.voteApprove(charityId)).to.emit(validateCharities, "ApproveVote").withArgs(owner, charityId);
-    
+    //@ts-ignore
     await waitForEvent(charityRegistry, "CharityAdded", 10000);
-    
-    
     const storedCharity = await charityRegistry.getCharity(1);
     expect(storedCharity.name).to.equal(charities[1].name);
     expect(storedCharity.wallet).to.equal(charities[1].walletAddress);
@@ -137,30 +135,27 @@ describe("CharityRegistry", function () {
     expect(storedCharity.isDonationReleasePaused).to.equal(charity.isDonationReleasePaused);
   });
 
-  // it("should update an existing charity", async function () {
-  //   await charityRegistry.addCharity(charity.name, charity.wallet);
-  //   const newWallet = ethers.Wallet.createRandom().address;
-  //   await charityRegistry.updateCharity(charity.id, charity.name, newWallet);
-  //   const storedCharity = await charityRegistry.charities(charity.id);
+  it("should make a donation", async function () {
+    const { 
+      validateCharities,
+      charityRegistry,
+			owner,
+      validatorAddresses
+    } = await deployCharitiesFixture();
+    
+    const charities = await validateCharities.getCharities();
+    const charityId = charities[1].charityId
+   await validateCharities.voteApprove(charityId)
 
-  //   expect(storedCharity.wallet).to.equal(newWallet);
-  // });
+    const balance = await ethers.provider.getBalance(validatorAddresses[1].address);
 
-  // it("should remove an existing charity", async function () {
-  //   await charityRegistry.addCharity(charity.name, charity.wallet);
-  //   await charityRegistry.removeCharity(charity.id);
-  //   const storedCharity = await charityRegistry.charities(charity.id);
+    await expect(await charityRegistry.makeDonation(charityId, {value: ethers.utils.parseEther("1")})).to.emit(charityRegistry, "DonationMade").withArgs(1, owner.address, ethers.utils.parseEther("1"));
+    
+    const sb = await charityRegistry.charities(charityId)
+    expect(sb.donationPool).to.equal(ethers.utils.parseEther("1"));
 
-  //   expect(storedCharity.isRemoved).to.equal(true);
-  // });
+  });
 
-  // it("should limit donations for a charity", async function () {
-  //   const donationLimit = 1000;
-  //   await charityRegistry.addCharity(charity.name, charity.wallet);
-  //   await charityRegistry.limitDonation(charity.id, donationLimit);
-  //   const storedCharity = await charityRegistry.charities(charity.id);
 
-  //   expect(storedCharity.isDonationLimitEnabled).to.equal(true);
-  //   expect(storedCharity.donationLimit).to.equal(donationLimit);
-  // });
+  
 });

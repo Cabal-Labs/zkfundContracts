@@ -44,6 +44,21 @@ contract ValidateCharities {
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can do this action");_;
     }
+    modifier votingProcess(uint256 charity) {
+        uint256 totalValidators = _validatorCount.current();
+        uint256 votesCount = approveVotes[charity] + disapproveVotes[charity];
+        uint256 approvalsCount = approveVotes[charity];
+
+
+        // Check that more than 70% of validators have voted on the charity
+        require((votesCount * 100 / totalValidators) > 70, "Less than 70% of validators have voted");
+
+        // Check that more than 75% of validators have approved the charity
+        require((approvalsCount * 100 / votesCount) > 75, "Less than 75% of validators approved");
+
+        _; // Continue executing the function
+    }
+
     function addValidator(address newValidator) external onlyValidator{
         if (validators[newValidator] == false){
 
@@ -118,22 +133,20 @@ contract ValidateCharities {
         approveCharity(charityId);
     }
     // TODO: Fix voting logic, it is currently not working
-    function approveCharity(uint256 charityId) internal returns (bool){
-        // uint256 minimumVotes = _validatorCount.current() * 100 / 66; // require at least 2/3 turnout
-        // uint256 totalVotes = approveVotes[charityId] + disapproveVotes[charityId];
-        bool result = true;//(totalVotes > minimumVotes && approveVotes[charityId] * 100 / totalVotes >= 75);// 75% approval
-        // if (result){
-            charities[charityId].status = CharityStatus.Approved;
-            CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
+    function approveCharity(uint256 charityId) internal votingProcess(charityId){
+      
+        
+        charities[charityId].status = CharityStatus.Approved;
+        CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
 
-            string memory name = charities[charityId].name;
-            address wallet = charities[charityId].walletAddress;
+        string memory name = charities[charityId].name;
+        address wallet = charities[charityId].walletAddress;
 
-            charityRegistryContract.addCharity(name, wallet);
+        charityRegistryContract.addCharity(name, wallet);
 
-            emit CharityApproved(charities[charityId].walletAddress, charities[charityId].name, charityId);
-       // }
-        return result;
+        emit CharityApproved(charities[charityId].walletAddress, charities[charityId].name, charityId);
+    
+
     }
     // requirements
     // have a way to check if the charity being voted on is already validated (done)
