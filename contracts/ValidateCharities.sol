@@ -16,7 +16,7 @@ contract ValidateCharities {
         _validatorCount.increment();
     }
     event CharityCreated(address charityAddress, string name, uint256 charityId);
-    event CharityApproved(address charityAddress, string name, uint256 charityId);
+    event CharityApproved(uint256 charityId,address charityAddress, string name );
     event ApproveVote(address validator, uint256 charityId);
     event DisapproveVote(address validator, uint256 charityId);
     enum CharityStatus {
@@ -101,28 +101,49 @@ contract ValidateCharities {
         charities[newItemId] = charity;
         emit CharityCreated(walletAddress, name, newItemId);
     }
-    function voteApprove(uint256 charityId) public onlyValidator notVoted(msg.sender, charityId){
-        validatorToCharity[msg.sender][charityId] = true;
-        approveVotes[charityId]++;
-        emit ApproveVote(msg.sender, charityId);
-        approveCharity(charityId);
+
+    function vote(uint256 charityId, bool votedApprove) public onlyValidator notVoted(msg.sender, charityId){
+        validatorToCharity[msg.sender][charityId] = votedApprove;
+        if (votedApprove){
+            approveVotes[charityId]++;
+            emit ApproveVote(msg.sender, charityId);
+        }
+        else{
+            disapproveVotes[charityId]++;
+            emit DisapproveVote(msg.sender, charityId);
+        }
+    }
+    function getVotes(uint256 charityId) public view returns (uint256, uint256){
+        return (approveVotes[charityId], disapproveVotes[charityId]);
     }
 
-    function voteDisapprove(uint256 charityId) external onlyValidator notVoted(msg.sender, charityId){
-        validatorToCharity[msg.sender][charityId] = true;
-        disapproveVotes[charityId]++;
-        emit DisapproveVote(msg.sender, charityId);
-        approveCharity(charityId);
-    }
-    function approveCharity(uint256 charityId) internal returns (bool){
+    function approveCharity(uint256 charityId) public onlyValidator{
+        // check if charityId exists
+        if (!charities[charityId].ownsWallet) {
+            revert("This charity does not own a wallet and cannot be approved");
+        }
         uint256 minimumVotes = _validatorCount.current() * 100 / 66; // require at least 2/3 turnout
         uint256 totalVotes = approveVotes[charityId] + disapproveVotes[charityId];
-        bool result = (totalVotes > minimumVotes && approveVotes[charityId] * 100 / totalVotes >= 75);// 75% approval
-        if (result){
-            charities[charityId].status = CharityStatus.Approved;
-            emit CharityApproved(charities[charityId].walletAddress, charities[charityId].name, charityId);
+        bool validTurnout = totalVotes > minimumVotes;
+        if (totalVotes == 0){
+            revert("This charity has not been voted on yet");
         }
-        return result;
+        bool validSupport = approveVotes[charityId] * 100 / totalVotes >= 75;
+        if (!validSupport && !validTurnout) {
+            revert ("This charity does not have enough votes and does not have enough consenus");
+        }
+        if (!validTurnout){
+            revert("This charity does not have enough votes to be validated");
+        }
+        if (!validSupport){
+            charities[charityId].status = CharityStatus.Disapproved;
+            revert("This charity does not have enough consensus to be validated");
+        }
+        if (validSupport && validTurnout) {
+            charities[charityId].status = CharityStatus.Approved;
+            emit CharityApproved(charityId,charities[charityId].walletAddress, charities[charityId].name);
+            // call function in charities.sol to create permanent charity
+        }
     }
     // requirements
     // have a way to check if the charity being voted on is already validated (done)
