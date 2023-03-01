@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >0.7.0 <=0.8.18;
-import "./Counters.sol";  
+import "./Counters.sol"; 
+import "./Charities.sol"; 
 
 contract ValidateCharities {
     using Counters for Counters.Counter;
     address public owner;
 
+    address public charityRegistry;
+
     mapping (address => bool) public validators;
     mapping (uint256 => CharitySnapshot) public charities;
     Counters.Counter private _validatorCount;
     Counters.Counter private _charityIds;
-    constructor(){
+    constructor() payable {
         owner = msg.sender;
         validators[msg.sender] = true;
         _validatorCount.increment();
@@ -62,7 +65,7 @@ contract ValidateCharities {
     // maps a charity to a nubmer of disapproveVotes
     mapping (uint256 => uint256) private disapproveVotes;
     // tracks if a validator has voted for a specific charity or not
-    mapping (address => mapping(uint256 => bool)) private validatorToCharity;
+    mapping (address => mapping(uint256 => bool)) public validatorToCharity;
     // ex: validatorToCharity[validatorAddress][charityId] = bool
 
     modifier notVoted(address validator, uint256 charityId) {
@@ -114,14 +117,22 @@ contract ValidateCharities {
         emit DisapproveVote(msg.sender, charityId);
         approveCharity(charityId);
     }
+    // TODO: Fix voting logic, it is currently not working
     function approveCharity(uint256 charityId) internal returns (bool){
-        uint256 minimumVotes = _validatorCount.current() * 100 / 66; // require at least 2/3 turnout
-        uint256 totalVotes = approveVotes[charityId] + disapproveVotes[charityId];
-        bool result = (totalVotes > minimumVotes && approveVotes[charityId] * 100 / totalVotes >= 75);// 75% approval
-        if (result){
+        // uint256 minimumVotes = _validatorCount.current() * 100 / 66; // require at least 2/3 turnout
+        // uint256 totalVotes = approveVotes[charityId] + disapproveVotes[charityId];
+        bool result = true;//(totalVotes > minimumVotes && approveVotes[charityId] * 100 / totalVotes >= 75);// 75% approval
+        // if (result){
             charities[charityId].status = CharityStatus.Approved;
+            CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
+
+            string memory name = charities[charityId].name;
+            address wallet = charities[charityId].walletAddress;
+
+            charityRegistryContract.addCharity(name, wallet);
+
             emit CharityApproved(charities[charityId].walletAddress, charities[charityId].name, charityId);
-        }
+       // }
         return result;
     }
     // requirements
@@ -131,4 +142,8 @@ contract ValidateCharities {
     // be able to replace a temporary wallet with one that they have created - todo much later
     // be able to know how many votes (approve and disapprove) each charity has received - needs implementation
     // have a way to finish the validtion process for valid charities
+
+    function setCharityRegistry(address _charityRegistry) external onlyOwner{
+        charityRegistry = _charityRegistry;
+    }
 }
