@@ -147,7 +147,7 @@ describe("CharityRegistry", function () {
     const charityId = charities[1].charityId
    await validateCharities.voteApprove(charityId)
 
-    const balance = await ethers.provider.getBalance(validatorAddresses[1].address);
+    
 
     await expect(await charityRegistry.makeDonation(charityId, {value: ethers.utils.parseEther("1")})).to.emit(charityRegistry, "DonationMade").withArgs(1, owner.address, ethers.utils.parseEther("1"));
     
