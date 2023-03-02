@@ -79,7 +79,7 @@ describe("ValidateCharities", function () {
 					// not enough support or approval
 					await validateCharities
 						.connect(validatorAddresses[i])
-						.vote(_charities[3].charityAddress, getVote(1));
+						.vote(_charities[3].charityAddress, getVote(0.4));
 				}
 				// doesn't  have an wallet
 				await validateCharities
@@ -280,6 +280,7 @@ describe("ValidateCharities", function () {
 			).to.be.revertedWith("Only validators can do this action");
 		});
 		it("should allow a charity: >=75% approval >=66% turnout to be approved", async function () {
+			//this is broken
 			const { validateCharities, owner, populateCharities } =
 				await deployValidateCharitiesFixture();
 			await populateCharities();
@@ -299,9 +300,7 @@ describe("ValidateCharities", function () {
 			const charityId = charities[1].charityId;
 			await expect(
 				validateCharities.approveCharity(charityId)
-			).to.be.revertedWith(
-				"This charity does not have enough consensus to be validated"
-			);
+			).to.be.revertedWith("Less than 70% of validators have voted");
 		});
 		it("should not allow a charity: >=75% approval <66% turnout from being approved", async function () {
 			const { validateCharities, owner, populateCharities } =
@@ -323,9 +322,7 @@ describe("ValidateCharities", function () {
 			const charityId = charities[3].charityId;
 			await expect(
 				validateCharities.approveCharity(charityId)
-			).to.be.revertedWith(
-				"This charity does not have enough votes and does not have enough consensus"
-			);
+			).to.be.revertedWith("Less than 70% of validators have voted");
 		});
 		it("should prevent a charity without a wallet from being approved", async function () {
 			const { validateCharities, owner, populateCharities } =

@@ -135,7 +135,7 @@ contract ValidateCharities {
     function getVotes(uint256 charityId) public view returns (uint256, uint256){
         return (approveVotes[charityId], disapproveVotes[charityId]);
     }
-    function approveCharity(uint256 charityId) internal votingProcess(charityId){
+    function approveCharity(uint256 charityId) public votingProcess(charityId){
         charities[charityId].status = CharityStatus.Approved;
         CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
 
@@ -144,7 +144,7 @@ contract ValidateCharities {
 
         charityRegistryContract.addCharity(name, wallet);
 
-        emit CharityApproved(charities[charityId].walletAddress, charities[charityId].name, charityId);
+        emit CharityApproved(charityId, charities[charityId].walletAddress, charities[charityId].name);
     }
     function setCharityRegistry(address _charityRegistry) external onlyOwner{
         charityRegistry = _charityRegistry;
