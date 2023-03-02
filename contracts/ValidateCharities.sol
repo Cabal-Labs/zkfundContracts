@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >0.7.0 <=0.8.18;
 import "./Counters.sol";
+import "./Charities.sol";
 
 contract ValidateCharities {
     using Counters for Counters.Counter;
     address public owner;
 
+    address public charityRegistry;
+
     mapping (address => bool) public validators;
     mapping (uint256 => CharitySnapshot) public charities;
     Counters.Counter private _validatorCount;
     Counters.Counter private _charityIds;
-    constructor(){
+    constructor() payable {
         owner = msg.sender;
         validators[msg.sender] = true;
         _validatorCount.increment();
@@ -41,6 +44,21 @@ contract ValidateCharities {
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can do this action");_;
     }
+    modifier votingProcess(uint256 charity) {
+        uint256 totalValidators = _validatorCount.current();
+        uint256 votesCount = approveVotes[charity] + disapproveVotes[charity];
+        uint256 approvalsCount = approveVotes[charity];
+
+
+        // Check that more than 70% of validators have voted on the charity
+        require((votesCount * 100 / totalValidators) > 70, "Less than 70% of validators have voted");
+
+        // Check that more than 75% of validators have approved the charity
+        require((approvalsCount * 100 / votesCount) > 75, "Less than 75% of validators approved");
+
+        _; // Continue executing the function
+    }
+
     function addValidator(address newValidator) external onlyValidator{
         if (validators[newValidator] == false){
 
@@ -62,7 +80,7 @@ contract ValidateCharities {
     // maps a charity to a nubmer of disapproveVotes
     mapping (uint256 => uint256) private disapproveVotes;
     // tracks if a validator has voted for a specific charity or not
-    mapping (address => mapping(uint256 => bool)) private validatorToCharity;
+    mapping (address => mapping(uint256 => bool)) public validatorToCharity;
     // ex: validatorToCharity[validatorAddress][charityId] = bool
 
     modifier notVoted(address validator, uint256 charityId) {
@@ -112,44 +130,23 @@ contract ValidateCharities {
             disapproveVotes[charityId]++;
             emit DisapproveVote(msg.sender, charityId);
         }
+        approveCharity(charityId);
     }
     function getVotes(uint256 charityId) public view returns (uint256, uint256){
         return (approveVotes[charityId], disapproveVotes[charityId]);
     }
+    function approveCharity(uint256 charityId) internal votingProcess(charityId){
+        charities[charityId].status = CharityStatus.Approved;
+        CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
 
-    function approveCharity(uint256 charityId) public onlyValidator{
-        // check if charityId exists
-        if (!charities[charityId].ownsWallet) {
-            revert("This charity does not own a wallet and cannot be approved");
-        }
-        uint256 minimumVotes = _validatorCount.current() * 100 / 66; // require at least 2/3 turnout
-        uint256 totalVotes = approveVotes[charityId] + disapproveVotes[charityId];
-        bool validTurnout = totalVotes > minimumVotes;
-        if (totalVotes == 0){
-            revert("This charity has not been voted on yet");
-        }
-        bool validSupport = approveVotes[charityId] * 100 / totalVotes >= 75;
-        if (!validSupport && !validTurnout) {
-            revert ("This charity does not have enough votes and does not have enough consenus");
-        }
-        if (!validTurnout){
-            revert("This charity does not have enough votes to be validated");
-        }
-        if (!validSupport){
-            charities[charityId].status = CharityStatus.Disapproved;
-            revert("This charity does not have enough consensus to be validated");
-        }
-        if (validSupport && validTurnout) {
-            charities[charityId].status = CharityStatus.Approved;
-            emit CharityApproved(charityId,charities[charityId].walletAddress, charities[charityId].name);
-            // call function in charities.sol to create permanent charity
-        }
+        string memory name = charities[charityId].name;
+        address wallet = charities[charityId].walletAddress;
+
+        charityRegistryContract.addCharity(name, wallet);
+
+        emit CharityApproved(charities[charityId].walletAddress, charities[charityId].name, charityId);
     }
-    // requirements
-    // have a way to check if the charity being voted on is already validated (done)
-    // have a way for charities that are pending to be stored (done)
-    // generate a temporary wallet address for those that don't have a wallet (done -> needs implementation)
-    // be able to replace a temporary wallet with one that they have created - todo much later
-    // be able to know how many votes (approve and disapprove) each charity has received - needs implementation
-    // have a way to finish the validtion process for valid charities
+    function setCharityRegistry(address _charityRegistry) external onlyOwner{
+        charityRegistry = _charityRegistry;
+    }
 }
