@@ -18,7 +18,7 @@ contract ValidateCharities {
         validators[msg.sender] = true;
         _validatorCount.increment();
     }
-    event CharityCreated(address charityAddress, string name, uint256 charityId);
+    event CharityCreated(address charityAddress, string name, uint256 charityId, string info);
     event CharityApproved(uint256 charityId,address charityAddress, string name );
     event CharityDisapproved(uint256 charityId,address charityAddress, string name );
     event ApproveVote(address validator, uint256 charityId);
@@ -30,6 +30,7 @@ contract ValidateCharities {
         string name;
         uint256 charityId; // from mongodb _id
         address walletAddress; // might not have one, if not it will be address(0)
+        string info; // info stored ipfs
         bool ownsWallet; // if true, then the wallet address is theirs
         CharityStatus status;
     }
@@ -91,7 +92,7 @@ contract ValidateCharities {
         // returns the status of a charity
         return charities[charityId].status;
     }
-    function initCharity (address walletAddress, string memory name, bool ownsWallet) public onlyValidator{
+    function initCharity (address walletAddress, string memory name, bool ownsWallet, string memory _info ) public onlyValidator{
         //check if any charity already has this name
         for (uint256 i = 1; i <= _charityIds.current(); i++) {
             if (keccak256(abi.encodePacked(charities[i].name)) == keccak256(abi.encodePacked(name)) || charities[i].walletAddress == walletAddress){
@@ -105,11 +106,12 @@ contract ValidateCharities {
             name:name,
             charityId: newItemId,
             walletAddress: walletAddress,
+            info: _info,
             ownsWallet: ownsWallet,
             status: CharityStatus.Pending
         });
         charities[newItemId] = charity;
-        emit CharityCreated(walletAddress, name, newItemId);
+        emit CharityCreated(walletAddress, name, newItemId, _info);
     }
 
     function vote(uint256 charityId, bool votedApprove) public onlyValidator notVoted(msg.sender, charityId){
@@ -141,7 +143,7 @@ contract ValidateCharities {
             CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
             string memory name = charities[charityId].name;
             address wallet = charities[charityId].walletAddress;
-            charityRegistryContract.addCharity(name, wallet);
+            charityRegistryContract.addCharity(charityId,name, wallet, charities[charityId].info );
 
             emit CharityApproved(charityId, charities[charityId].walletAddress, charities[charityId].name);
         }

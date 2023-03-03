@@ -23,6 +23,7 @@ describe("ValidateCharities", function () {
 
 	async function deployValidateCharitiesFixture() {
 		const ONE_GWEI = 1_000_000_000;
+		
 		const ValidateCharities = await ethers.getContractFactory(
 			"ValidateCharities"
 		);
@@ -48,26 +49,31 @@ describe("ValidateCharities", function () {
 				{
 					charityAddress: validatorAddresses[0].address,
 					charityName: "Charity 1",
+					info: "ipfs://QmZ5Y2",
 					hasWallet: true,
 				},
 				{
 					charityAddress: ethers.Wallet.createRandom().address,
 					charityName: "Charity 2",
+					info: "ipfs://QmZ5Y2",
 					hasWallet: true,
 				},
 				{
 					charityAddress: ethers.Wallet.createRandom().address,
 					charityName: "Charity 3",
+					info: "ipfs://QmZ5Y2",
 					hasWallet: true,
 				},
 				{
 					charityAddress: ethers.Wallet.createRandom().address,
 					charityName: "Charity 4",
+					info: "ipfs://QmZ5Y2",
 					hasWallet: true,
 				},
 				{
 					charityAddress: ethers.Wallet.createRandom().address,
 					charityName: "Charity 5",
+					info: "ipfs://QmZ5Y2",
 					hasWallet: false,
 				},
 			];
@@ -76,7 +82,8 @@ describe("ValidateCharities", function () {
 				let newCharity = await validateCharities.initCharity(
 					_charities[i].charityAddress,
 					_charities[i].charityName,
-					_charities[i].hasWallet
+					_charities[i].hasWallet,
+					_charities[i].info,
 				);
 				charities.push(newCharity);
 			}
@@ -173,7 +180,8 @@ describe("ValidateCharities", function () {
 			await validateCharities.initCharity(
 				ethers.Wallet.createRandom().address,
 				"Charity 1",
-				true
+				true,
+				"ipfs://QmZ5Y2",
 			);
 			let charities = await validateCharities.getCharities();
 			expect(charities.length).to.equal(1);
@@ -214,15 +222,17 @@ describe("ValidateCharities", function () {
 			const _charityAddress = ethers.Wallet.createRandom().address;
 			const _charityName = "Charity 1";
 			const _hasWallet = true;
+			const _infoHash = "ipfs://QmZ5Y2";
 			expect(
 				await validateCharities.initCharity(
 					_charityAddress,
 					_charityName,
-					_hasWallet
+					_hasWallet,
+					_infoHash
 				)
 			)
 				.to.emit(validateCharities, "CharityCreated")
-				.withArgs(_charityAddress, _charityName, _hasWallet);
+				.withArgs(_charityAddress, _charityName, _hasWallet, _infoHash);
 		});
 		it("should prevent a non-validator from creating a charity", async function () {
 			const { validateCharities, owner, testAddresses } =
@@ -230,10 +240,11 @@ describe("ValidateCharities", function () {
 			const _charityAddress = ethers.Wallet.createRandom().address;
 			const _charityName = "Charity 1";
 			const _hasWallet = true;
+			const _infoHash = "ipfs://QmZ5Y2";
 			await expect(
 				validateCharities
 					.connect(testAddresses[0])
-					.initCharity(_charityAddress, _charityName, _hasWallet)
+					.initCharity(_charityAddress, _charityName, _hasWallet, _infoHash)
 			).to.be.revertedWith("Only validators can do this action");
 		});
 		it("should prevent two charities with the same name from being created", async function () {
@@ -243,17 +254,19 @@ describe("ValidateCharities", function () {
 			const _charityAddress =  ethers.Wallet.createRandom().address;
 			const _charityName = "Charity 3";
 			const _hasWallet = true;
+			const _infoHash = "ipfs://QmZ5Y2";
 			expect(
 				await validateCharities.initCharity(
 					_charityAddress,
 					_charityName,
-					_hasWallet
+					_hasWallet,
+					_infoHash
 				)
 			)
 				.to.emit(validateCharities, "CharityCreated")
-				.withArgs(_charityAddress, _charityName, _hasWallet);
+				.withArgs(_charityAddress, _charityName, _hasWallet, _infoHash);
 			await expect(
-				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet)
+				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet, _infoHash)
 			).to.be.revertedWith("Charity with this name already exists");
 		});
 		it("should prevent two charities with the same address from being created", async function () {
@@ -263,18 +276,19 @@ describe("ValidateCharities", function () {
 			const _charityAddress = validatorAddresses[0].address;
 			const _charityName = "Charity 15";
 			const _hasWallet = true;
-			
+			const _infoHash = "ipfs://QmZ5Y2";
 			expect(
 				await validateCharities.initCharity(
 					_charityAddress,
 					_charityName,
-					_hasWallet
+					_hasWallet,
+					_infoHash
 				)
 			)
 				.to.emit(validateCharities, "CharityCreated")
-				.withArgs(_charityAddress, _charityName, _hasWallet);
+				.withArgs(_charityAddress, _charityName, _hasWallet, _infoHash);
 			await expect(
-				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet)
+				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet, _infoHash)
 			).to.be.revertedWith("Charity with this name already exists");
 		});
 	});

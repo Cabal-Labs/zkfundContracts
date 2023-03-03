@@ -11,6 +11,7 @@ contract CharityRegistry {
         uint256 id;
         string name;
         address wallet;
+        string info;
         uint256 donationPool;
         uint256 lastReleaseTimestamp;
         bool isRemoved;
@@ -45,10 +46,9 @@ contract CharityRegistry {
         _;
     }
 
-    function addCharity(string memory _name, address _wallet) public onlyVotingContract {
-        _CharityIds.increment();
-        uint256 id = _CharityIds.current();
-        charities[id] = Charity(id, _name, _wallet, 0, 0, false, false, 0, false, false);
+    function addCharity(uint256 id ,string memory _name, address _wallet,string memory _info) public onlyVotingContract {
+        require(charities[id].id == 0, "Charity already exists");
+        charities[id] = Charity(id, _name, _wallet,_info, 0, 0, false, false, 0, false, false);
         emit CharityAdded(id, _name, _wallet);
     }
 
