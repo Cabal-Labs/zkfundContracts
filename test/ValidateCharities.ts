@@ -2,14 +2,34 @@ import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
+interface Charity {
+	id?: number;
+	name?: string;
+	wallet?: string;
+	donationPool?: number;
+	lastReleaseTimestamp: number;
+	isRemoved: boolean;
+	isDonationLimitEnabled: boolean;
+	donationLimit: number;
+	isEmergencyStopEnabled: boolean;
+	isDonationReleasePaused: boolean;
+}
+
+
 describe("ValidateCharities", function () {
 	// We define a fixture to reuse the same setup in every test."
+	let charity: Charity;
+
+
 	async function deployValidateCharitiesFixture() {
+		const ONE_GWEI = 1_000_000_000;
 		const ValidateCharities = await ethers.getContractFactory(
 			"ValidateCharities"
 		);
-		const validateCharities = await ValidateCharities.deploy();
-
+		const lockedAmount = ONE_GWEI * 100;
+		const validateCharities = await ValidateCharities.deploy({
+			value: lockedAmount,
+		});
 		const _addresses = await ethers.getSigners();
 		const owner = _addresses[0];
 		const testAddresses = _addresses.slice(1, 5);
@@ -18,10 +38,15 @@ describe("ValidateCharities", function () {
 			await validateCharities.addValidator(validatorAddresses[i].address);
 		}
 
-		async function populateCharities() {
-			const _charities = [
+		
+		async function populateCharities(
+			address1: string = ethers.Wallet.createRandom().address,
+			address2: string = ethers.Wallet.createRandom().address,
+			address3: string = ethers.Wallet.createRandom().address
+			) {
+			let _charities = [
 				{
-					charityAddress: ethers.Wallet.createRandom().address,
+					charityAddress: validatorAddresses[0].address,
 					charityName: "Charity 1",
 					hasWallet: true,
 				},
@@ -55,45 +80,81 @@ describe("ValidateCharities", function () {
 				);
 				charities.push(newCharity);
 			}
+			charity = {
+				donationPool: 0,
+				lastReleaseTimestamp: 0,
+				isRemoved: false,
+				isDonationLimitEnabled: false,
+				donationLimit: 0,
+				isEmergencyStopEnabled: false,
+				isDonationReleasePaused: false,
+			};
 			// loop through validators and vote pass for charity 1, fail for charity 2, pending for charity 3
-			for (let i = 0; i < validatorAddresses.length; i++) {
-				// all validators will vote for charity1 and charity2, only 20% of validators will vote for charity3
-				//90% of validators will vote approve (true) for charity1 and 50% will approve for charity2
-				//getVote one is a function that returns true x% of the time
-				function getVote(x: number) {
-					return Math.random() < x;
-				}
-				//approved
-				await validateCharities
-					.connect(validatorAddresses[i])
-					.vote(_charities[0].charityAddress, getVote(0.9));
-				// has turnout, not approval
-				await validateCharities
-					.connect(validatorAddresses[i])
-					.vote(_charities[1].charityAddress, getVote(0.5));
-				// doesn't have turnout, but has approval
-				if (i < validatorAddresses.length * 0.2) {
-					await validateCharities
-						.connect(validatorAddresses[i])
-						.vote(_charities[2].charityAddress, getVote(1));
-					// not enough support or approval
-					await validateCharities
-						.connect(validatorAddresses[i])
-						.vote(_charities[3].charityAddress, getVote(0.4));
-				}
-				// doesn't  have an wallet
-				await validateCharities
-					.connect(validatorAddresses[i])
-					.vote(_charities[4].charityAddress, getVote(1));
-			}
+			// for (let i = 0; i < validatorAddresses.length; i++) {
+			// 	// all validators will vote for charity1 and charity2, only 20% of validators will vote for charity3
+			// 	//90% of validators will vote approve (true) for charity1 and 50% will approve for charity2
+			// 	//getVote one is a function that returns true x% of the time
+			// 	function getVote(x: number) {
+			// 		return Math.random() < x;
+			// 	}
+			// 	//approved
+			// 	await validateCharities
+			// 		.connect(validatorAddresses[i])
+			// 		.vote(_charities[1].charityAddress, getVote(0.9));
+			// 	// has turnout, not approval
+			// 	await validateCharities
+			// 		.connect(validatorAddresses[i])
+			// 		.vote(_charities[1].charityAddress, getVote(0.5));
+			// 	// doesn't have turnout, but has approval
+			// 	if (i < validatorAddresses.length * 0.2) {
+			// 		await validateCharities
+			// 			.connect(validatorAddresses[i])
+			// 			.vote(_charities[2].charityAddress, getVote(1));
+			// 		// not enough support or approval
+			// 		await validateCharities
+			// 			.connect(validatorAddresses[i])
+			// 			.vote(_charities[3].charityAddress, getVote(0.4));
+			// 	}
+			// 	// doesn't  have an wallet
+			// 	await validateCharities
+			// 		.connect(validatorAddresses[i])
+			// 		.vote(_charities[4].charityAddress, getVote(1));
+			// }
 		}
+
+		const CharityRegistry = await ethers.getContractFactory("CharityRegistry");
+		const charityRegistry = await CharityRegistry.deploy(
+			validateCharities.address
+		);
+
+		await validateCharities.setCharityRegistry(charityRegistry.address);
+
 		return {
 			validateCharities,
 			owner,
 			testAddresses,
 			validatorAddresses,
+			charityRegistry,
 			populateCharities,
 		};
+	}
+
+	async function waitForEvent(
+		contract: any,
+		eventName: string,
+		timeout: number = 2000
+	) {
+		return new Promise((resolve, reject) => {
+			const timeoutId = setTimeout(() => {
+				contract.removeAllListeners(eventName);
+			}, timeout);
+
+			contract.on(eventName, (...args: any[]) => {
+				clearTimeout(timeoutId);
+				contract.removeAllListeners(eventName);
+				resolve(args);
+			});
+		});
 	}
 
 	describe("Deployment", function () {
@@ -167,7 +228,7 @@ describe("ValidateCharities", function () {
 			const { validateCharities, owner, testAddresses } =
 				await deployValidateCharitiesFixture();
 			const _charityAddress = ethers.Wallet.createRandom().address;
-			const _charityName = "Charity 101";
+			const _charityName = "Charity 1";
 			const _hasWallet = true;
 			await expect(
 				validateCharities
@@ -178,8 +239,9 @@ describe("ValidateCharities", function () {
 		it("should prevent two charities with the same name from being created", async function () {
 			const { validateCharities, owner, testAddresses } =
 				await deployValidateCharitiesFixture();
-			const _charityAddress = ethers.Wallet.createRandom().address;
-			const _charityName = "Charity 1";
+			//@ts-ignore -> type error
+			const _charityAddress =  ethers.Wallet.createRandom().address;
+			const _charityName = "Charity 3";
 			const _hasWallet = true;
 			expect(
 				await validateCharities.initCharity(
@@ -192,9 +254,29 @@ describe("ValidateCharities", function () {
 				.withArgs(_charityAddress, _charityName, _hasWallet);
 			await expect(
 				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet)
-			).to.be.revertedWith("Charity With This Name Already Exists");
+			).to.be.revertedWith("Charity with this name already exists");
 		});
-		it("should prevent two charities with the same address from being created", async function () {});
+		it("should prevent two charities with the same address from being created", async function () {
+			const { validateCharities, owner, testAddresses, validatorAddresses } =
+				await deployValidateCharitiesFixture();
+			//@ts-ignore -> type error
+			const _charityAddress = validatorAddresses[0].address;
+			const _charityName = "Charity 15";
+			const _hasWallet = true;
+			
+			expect(
+				await validateCharities.initCharity(
+					_charityAddress,
+					_charityName,
+					_hasWallet
+				)
+			)
+				.to.emit(validateCharities, "CharityCreated")
+				.withArgs(_charityAddress, _charityName, _hasWallet);
+			await expect(
+				validateCharities.initCharity(_charityAddress, _charityName, _hasWallet)
+			).to.be.revertedWith("Charity with this name already exists");
+		});
 	});
 	describe("Voting", function () {
 		it("should allow a validator to vote to approve", async function () {
@@ -202,7 +284,7 @@ describe("ValidateCharities", function () {
 				await deployValidateCharitiesFixture();
 			await populateCharities();
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[0].charityId;
+			const charityId = charities[1].charityId;
 			expect(await validateCharities.vote(charityId, true))
 				.to.emit(validateCharities, "ApproveVote")
 				.withArgs(owner, charityId);
@@ -212,7 +294,7 @@ describe("ValidateCharities", function () {
 				await deployValidateCharitiesFixture();
 			await populateCharities();
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[0].charityId;
+			const charityId = charities[1].charityId;
 			expect(await validateCharities.vote(charityId, false))
 				.to.emit(validateCharities, "DisapproveVote")
 				.withArgs(owner, charityId);
@@ -222,7 +304,7 @@ describe("ValidateCharities", function () {
 				await deployValidateCharitiesFixture();
 			await populateCharities();
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[0].charityId;
+			const charityId = charities[1].charityId;
 			await expect(
 				validateCharities.connect(testAddresses[0]).vote(charityId, true)
 			).to.be.revertedWith("Only validators can do this action");
@@ -232,7 +314,7 @@ describe("ValidateCharities", function () {
 				await deployValidateCharitiesFixture();
 			await populateCharities();
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[0].charityId;
+			const charityId = charities[1].charityId;
 			expect(await validateCharities.vote(charityId, true))
 				.to.emit(validateCharities, "ApproveVote")
 				.withArgs(owner, charityId);
@@ -249,23 +331,31 @@ describe("ValidateCharities", function () {
 		// 	);
 		// });
 		it("should prevent a validator from voting for a charity that has already been approved", async function () {
-			// also do i need this test case?
-		});
-		it("should prevent a validator from voting for a charity that has already been rejected", async function () {
-			// also do i need this test case? something could come back into review
-		});
+			const { validateCharities, owner, populateCharities,validatorAddresses } =
+				await deployValidateCharitiesFixture();
+			await populateCharities();
+			const charities = await validateCharities.getCharities();
+			const charityId = charities[1].charityId;
+			for (let i = 0; i < validatorAddresses.length; i++) {
+				await validateCharities.connect(validatorAddresses[i]).vote(charityId, true);
+			}
+			await validateCharities.resolveCharity(charityId);
 
-		it("should prevent a charity from being approved if it has been rejected", async function () {
-			// right, can't things come up for review again?
-		});
-		it("should prevent a charity from being rejected if it has already been rejected", async function () {
-			// also fine, could fail the process twice
-		});
-		it("should prevent a charity from being rejected if it has been approved", async function () {
-			// this would be the "emergecyStop" function but i'm not sure if this needs to get tested here
+			await expect(validateCharities.vote(charityId, true)).to.be.revertedWith("Charity is not pending, Cannot vote on it")
+
+
 		});
 		it("should prevent a charity from being approved if it has already been approved", async function () {
-			// also harmless, unless it would incur unnecessary gas costs that a guard case it to revert
+			const { validateCharities, owner, populateCharities,validatorAddresses } =
+				await deployValidateCharitiesFixture();
+			await populateCharities();
+			const charities = await validateCharities.getCharities();
+			const charityId = charities[1].charityId;
+			for (let i = 0; i < validatorAddresses.length; i++) {
+				await validateCharities.connect(validatorAddresses[i]).vote(charityId, true);
+			}
+			await validateCharities.resolveCharity(charityId);
+			await expect(validateCharities.resolveCharity(charityId)).to.be.revertedWith("Charity is not pending, Cannot approve it")
 		});
 	});
 	describe("Approving/Disapproving Charities", function () {
@@ -274,65 +364,107 @@ describe("ValidateCharities", function () {
 				await deployValidateCharitiesFixture();
 			await populateCharities();
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[0].charityId;
-			await expect(
-				validateCharities.connect(testAddresses[0]).approveCharity(charityId)
-			).to.be.revertedWith("Only validators can do this action");
-		});
-		it("should allow a charity: >=75% approval >=66% turnout to be approved", async function () {
-			//this is broken
-			const { validateCharities, owner, populateCharities } =
-				await deployValidateCharitiesFixture();
-			await populateCharities();
-			const charities = await validateCharities.getCharities();
-			const charityId = charities[0].charityId;
-			console.log(charities[0].walletAddress);
-			expect(await validateCharities.approveCharity(charityId))
-				.to.emit(validateCharities, "CharityApproved")
-				.withArgs(charityId, charities[0].walletAddress, charities[0].name);
-		});
-
-		it("should not allow a charity: <75% approval >=66% turnout from being approved", async function () {
-			const { validateCharities, owner, populateCharities } =
-				await deployValidateCharitiesFixture();
-			await populateCharities();
-			const charities = await validateCharities.getCharities();
 			const charityId = charities[1].charityId;
 			await expect(
-				validateCharities.approveCharity(charityId)
-			).to.be.revertedWith("Less than 70% of validators have voted");
+				validateCharities.connect(testAddresses[0]).resolveCharity(charityId)
+			).to.be.revertedWith("Only validators can do this action");
 		});
-		it("should not allow a charity: >=75% approval <66% turnout from being approved", async function () {
-			const { validateCharities, owner, populateCharities } =
+		it("should allow a charity with enough aproval votes to be approved", async function () {
+		
+			const { validateCharities, owner, populateCharities, validatorAddresses } =
 				await deployValidateCharitiesFixture();
 			await populateCharities();
+
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[2].charityId;
-			await expect(
-				validateCharities.approveCharity(charityId)
-			).to.be.revertedWith(
-				"This charity does not have enough votes to be validated"
+			const charityId = charities[1].charityId;
+			for (let i = 0; i < validatorAddresses.length; i++) {
+				await validateCharities.connect(validatorAddresses[i]).vote(charityId, true);
+			}
+			
+			expect(await validateCharities.resolveCharity(charityId))
+				.to.emit(validateCharities, "CharityApproved")
+				.withArgs(charityId, charities[1].walletAddress, charities[1].name);
+		});
+
+		it("should not allow a charity with enough aproval votes to be approved", async function () {
+			const { validateCharities, owner, populateCharities, validatorAddresses } =
+				await deployValidateCharitiesFixture();
+			await populateCharities();
+
+			const charities = await validateCharities.getCharities();
+			const charityId = charities[1].charityId;
+			for (let i = 0; i < validatorAddresses.length; i++) {
+				await validateCharities.connect(validatorAddresses[i]).vote(charityId, false);
+			}
+			
+			expect(await validateCharities.resolveCharity(charityId))
+				.to.emit(validateCharities, "CharityDisapproved")
+				.withArgs(charityId, charities[1].walletAddress, charities[1].name);
+		});
+		
+	});
+
+	describe("Charity Resgitry", function () {
+		it("should add a new charity for donations", async function () {
+			const { validateCharities, charityRegistry,populateCharities, owner, validatorAddresses } = await deployValidateCharitiesFixture();
+
+			await populateCharities(
+				validatorAddresses[1].address,
+				validatorAddresses[2].address,
+				validatorAddresses[3].address
+			);
+			const charities = await validateCharities.getCharities();
+			const charityId = charities[1].charityId;
+	
+
+			for (let i = 0; i < validatorAddresses.length; i++) {
+				await validateCharities.connect(validatorAddresses[i]).vote(charityId, true);
+			}
+
+			await validateCharities.resolveCharity(charityId);
+			//@ts-ignore
+			await waitForEvent(charityRegistry, "CharityAdded");
+
+			const storedCharity = await charityRegistry.getCharity(1);
+			expect(storedCharity.name).to.equal(charities[1].name);
+			expect(storedCharity.wallet).to.equal(charities[1].walletAddress);
+			expect(storedCharity.donationPool).to.equal(charity.donationPool);
+			expect(storedCharity.lastReleaseTimestamp).to.equal(
+				charity.lastReleaseTimestamp
+			);
+			expect(storedCharity.isRemoved).to.equal(charity.isRemoved);
+			expect(storedCharity.isDonationLimitEnabled).to.equal(
+				charity.isDonationLimitEnabled
+			);
+			expect(storedCharity.donationLimit).to.equal(charity.donationLimit);
+			expect(storedCharity.isEmergencyStopEnabled).to.equal(
+				charity.isEmergencyStopEnabled
+			);
+			expect(storedCharity.isDonationReleasePaused).to.equal(
+				charity.isDonationReleasePaused
 			);
 		});
-		it("should not allow a charity: <75% approval <66% turnout from being approved", async function () {
-			const { validateCharities, owner, populateCharities } =
-				await deployValidateCharitiesFixture();
-			await populateCharities();
+
+		it("should make a donation", async function () {
+			const { validateCharities, charityRegistry,populateCharities, owner, validatorAddresses } = await deployValidateCharitiesFixture();
+
+			await populateCharities(
+				validatorAddresses[1].address,
+				validatorAddresses[2].address,
+				validatorAddresses[3].address
+			);
 			const charities = await validateCharities.getCharities();
-			const charityId = charities[3].charityId;
-			await expect(
-				validateCharities.approveCharity(charityId)
-			).to.be.revertedWith("Less than 70% of validators have voted");
-		});
-		it("should prevent a charity without a wallet from being approved", async function () {
-			const { validateCharities, owner, populateCharities } =
-				await deployValidateCharitiesFixture();
-			await populateCharities();
-			const charities = await validateCharities.getCharities();
-			const charityId = charities[4].charityId;
-			await expect(
-				validateCharities.approveCharity(charityId)
-			).to.be.revertedWith("A charity must have a wallet to be validated");
+			const charityId = charities[1].charityId;
+
+			for (let i = 0; i < validatorAddresses.length; i++) {
+				await validateCharities.connect(validatorAddresses[i]).vote(charityId, true);
+			}
+
+			await validateCharities.resolveCharity(charityId);
+			expect(await charityRegistry.makeDonation(1, {value: ethers.utils.parseEther("1"),})
+			).to.emit(charityRegistry, "DonationMade").withArgs(1, owner.address, ethers.utils.parseEther("1"));
+			const sb = await charityRegistry.charities(1);		
+			expect(sb.donationPool).to.equal(ethers.utils.parseEther("1"));
 		});
 	});
 });
