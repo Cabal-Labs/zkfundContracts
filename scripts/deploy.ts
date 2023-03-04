@@ -1,11 +1,13 @@
 import { ethers } from "hardhat";
+import { json } from "hardhat/internal/core/params/argumentTypes";
+var fs = require('fs');
 
 async function main() {	
 	//Starting deployment of contracts to Goerli testnet
-	console.log("Starting deployment to Goerli testnet...")
+	console.log("Starting deployment to Goerli testnet...\n \n")
 
 	//Deploying ValidateCharities
-	console.log("Deploying ValidateCharities...")
+	console.log("Deploying ValidateCharities... \n")
 	const ValidateCharities = await ethers.getContractFactory(
 		"ValidateCharities"
 	);
@@ -17,18 +19,23 @@ async function main() {
 	
 	await validateCharities.deployed();
 
+	console.log("\n============================== \n ")
 	const CharityRegistry = await ethers.getContractFactory("CharityRegistry");
 	const charityRegistry = await CharityRegistry.deploy(
 		validateCharities.address
 	);
-	console.log("Deploying CharityRegistry...")
+	console.log("Deploying CharityRegistry... \n ")
 	await charityRegistry.deployed();
+
+	console.log("============================== \n ")
 	
-	console.log(`Setting CharityRegistry address in ValidateCharities... Address: ${charityRegistry.address} `)
+	console.log(`Setting CharityRegistry address in ValidateCharities... Address: ${charityRegistry.address} \n `)
 	await validateCharities.setCharityRegistry(charityRegistry.address);
 
-	console.log("Adding Test Charity to ValidateCharity contract... Charity Address: 0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834");
+	console.log("============================== \n ")
 
+	console.log("Adding Test Charity to ValidateCharity contract... Charity Address: 0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834");
+	console.log("============================== \n ")
 	await validateCharities.initCharity(
 		"0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834",
 		"Test Charity",
@@ -36,17 +43,60 @@ async function main() {
 		"https://bafkreihxlypi6srdrvsohdfy57e3zn2cvgo3dgr6xfj4ux235ive3s4e2a.ipfs.nftstorage.link/",
 	);
 	
-	console.log("Voting for Test Charity...")
+	console.log("Voting for Test Charity...\n ")
+
+	console.log("============================== \n ")
 
 	await validateCharities.vote(1, true);
 
-	console.log("Adding Charity to Charity Resgitry:", charityRegistry.address, "... Charity Address: 0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834 ");
 	
+
+	console.log("Adding Charity to Charity Resgitry:", charityRegistry.address, "... Charity Address: 0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834 \n");
+	
+	console.log("============================== \n ")
 	await validateCharities.resolveCharity(1);
 	
 
 	console.log("Deployment complete! CharityRegistry address:", charityRegistry.address, "ValidateCharities address:", validateCharities.address);
+	
+	console.log("============================== \n ")
 
+	const jsonData = JSON.stringify({
+		"ValidateCharities": validateCharities.address,
+		"CharityRegistry": charityRegistry.address
+	})
+	//Writing addresses to file
+	fs.exists('ContractAddresses.json', function(exists: any) {
+		if (exists) {
+			//Edditing file
+			fs.readFile('ContractAddresses.json', 'utf8', function readFileCallback(err: any, data: any){
+				if (err){
+					console.log(err);
+				}
+				else {
+					var obj = JSON.parse(data);
+					obj.ValidateCharities = validateCharities.address;
+					obj.CharityRegistry = charityRegistry.address;
+					var json = JSON.stringify(obj);
+					fs.writeFile('ContractAddresses.json', json, 'utf8', function(err: any) {
+						if (err) {
+							console.log(err);
+						}
+					});
+				}	
+			});
+		}else{
+			fs.writeFile('ContractAddresses.json', jsonData, 'utf8', function(err: any) {
+				if (err) {
+					console.log(err);
+				}
+			});
+		}
+		
+	});
+	
+
+	
 
 }
 

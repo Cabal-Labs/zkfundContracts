@@ -181,7 +181,7 @@ describe("ValidateCharities", function () {
 				ethers.Wallet.createRandom().address,
 				"Charity 1",
 				true,
-				"ipfs://QmZ5Y2",
+				"ipfs://QmZ5Y2",  // this is the hash of the charity's info usimmg ipfs
 			);
 			let charities = await validateCharities.getCharities();
 			expect(charities.length).to.equal(1);
