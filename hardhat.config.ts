@@ -9,7 +9,8 @@ const config: HardhatUserConfig = {
   solidity: "0.8.17",
   networks: {
     goerli: {
-      url: `https://eth-goerli.alchemyapi.io/v2/${ALCHEMY_API}`,
+      
+      url: `https://goerli.infura.io/v3/${ALCHEMY_API}`,
       accounts: [GOERLI_PRIVATE_KEY]
     }
   }
