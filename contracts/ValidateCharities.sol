@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >0.7.0 <=0.8.18;
 import "./Counters.sol";
-import "./Charities.sol";
+import "./CharityRegistry.sol";
 
 contract ValidateCharities {
     using Counters for Counters.Counter;
@@ -18,9 +18,10 @@ contract ValidateCharities {
         validators[msg.sender] = true;
         _validatorCount.increment();
     }
-    event CharityCreated(address charityAddress, string name, uint256 charityId, string info);
-    event CharityApproved(uint256 charityId,address charityAddress, string name );
-    event CharityDisapproved(uint256 charityId,address charityAddress, string name );
+    //event Charity(address charityAddress, string name, uint256 charityId, string info, CharityStatus status);
+    event CharityCreated(address charityAddress, string name, uint256 charityId, string info, CharityStatus status);
+    event CharityApproved(uint256 charityId,address charityAddress, string name,CharityStatus status );
+    event CharityDisapproved(address charityAddress,uint256 charityId, string name,CharityStatus status );
     event ApproveVote(address validator, uint256 charityId);
     event DisapproveVote(address validator, uint256 charityId);
     enum CharityStatus {
@@ -111,7 +112,8 @@ contract ValidateCharities {
             status: CharityStatus.Pending
         });
         charities[newItemId] = charity;
-        emit CharityCreated(walletAddress, name, newItemId, _info);
+        emit CharityCreated(walletAddress, name, newItemId, _info, CharityStatus.Pending);
+        //emit Charity(walletAddress, name, newItemId, _info, CharityStatus.Pending);
     }
 
     function vote(uint256 charityId, bool votedApprove) public onlyValidator notVoted(msg.sender, charityId){
@@ -145,11 +147,13 @@ contract ValidateCharities {
             address wallet = charities[charityId].walletAddress;
             charityRegistryContract.addCharity(charityId,name, wallet, charities[charityId].info );
 
-            emit CharityApproved(charityId, charities[charityId].walletAddress, charities[charityId].name);
+            emit CharityApproved(charityId, charities[charityId].walletAddress, charities[charityId].name,  CharityStatus.Approved);
+            //emit Charity(charities[charityId].walletAddress, charities[charityId].name,charityId, charities[charityId].info, CharityStatus.Approved);
         }
         else{
             charities[charityId].status = CharityStatus.Disapproved;
-            emit CharityDisapproved(charityId, charities[charityId].walletAddress, charities[charityId].name);
+            emit CharityDisapproved( charities[charityId].walletAddress,charityId, charities[charityId].name, CharityStatus.Disapproved);
+            //emit Charity(charities[charityId].walletAddress, charities[charityId].name,charityId, charities[charityId].info, CharityStatus.Disapproved);
         }
 
         

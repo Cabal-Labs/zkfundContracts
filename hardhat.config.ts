@@ -10,7 +10,7 @@ const config: HardhatUserConfig = {
   networks: {
     goerli: {
       
-      url: `https://goerli.infura.io/v3/${ALCHEMY_API}`,
+      url: `https://eth-goerli.g.alchemy.com/v2/tb14Hsk3uF7yilSybLouN-sdaLnsC_DD`,
       accounts: [GOERLI_PRIVATE_KEY]
     }
   }

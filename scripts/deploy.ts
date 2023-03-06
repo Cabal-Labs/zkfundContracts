@@ -12,6 +12,7 @@ async function main() {
 		"ValidateCharities"
 	);
 	const STAKE = ethers.utils.parseEther("0.2");
+	
 	const validateCharities = await ValidateCharities.deploy({
 		value: STAKE,
 	});
@@ -30,31 +31,44 @@ async function main() {
 	console.log("============================== \n ")
 	
 	console.log(`Setting CharityRegistry address in ValidateCharities... Address: ${charityRegistry.address} \n `)
-	await validateCharities.setCharityRegistry(charityRegistry.address);
+	const gasLimit1 = await validateCharities.estimateGas.setCharityRegistry(charityRegistry.address);
+	await validateCharities.setCharityRegistry(charityRegistry.address,{
+		gasLimit: gasLimit1,
+	});
 
 	console.log("============================== \n ")
 
 	console.log("Adding Test Charity to ValidateCharity contract... Charity Address: 0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834");
 	console.log("============================== \n ")
-	await validateCharities.initCharity(
+	const gasLimit = await validateCharities.estimateGas.initCharity(
 		"0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834",
 		"Test Charity",
 		true,
 		"https://bafkreihxlypi6srdrvsohdfy57e3zn2cvgo3dgr6xfj4ux235ive3s4e2a.ipfs.nftstorage.link/",
 	);
+	await validateCharities.initCharity(
+		"0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834",
+		"Test Charity",
+		true,
+		"https://bafkreihxlypi6srdrvsohdfy57e3zn2cvgo3dgr6xfj4ux235ive3s4e2a.ipfs.nftstorage.link/",
+		{
+			gasLimit: gasLimit,
+		}
+	);
 	
 	console.log("Voting for Test Charity...\n ")
 
 	console.log("============================== \n ")
-
-	await validateCharities.vote(1, true);
+	const gasLimit2 = await validateCharities.estimateGas.vote(1, true);
+	await validateCharities.vote(1, true,{	gasLimit: gasLimit2,});
 
 	
 
 	console.log("Adding Charity to Charity Resgitry:", charityRegistry.address, "... Charity Address: 0x5E7Ce9F588F2aa647E0518e25A9c88AB48Ec6834 \n");
 	
 	console.log("============================== \n ")
-	await validateCharities.resolveCharity(1);
+	const gasLimit3 = await validateCharities.estimateGas.resolveCharity(1)
+	await validateCharities.resolveCharity(1,{gasLimit: gasLimit3});
 	
 
 	console.log("Deployment complete! CharityRegistry address:", charityRegistry.address, "ValidateCharities address:", validateCharities.address);
