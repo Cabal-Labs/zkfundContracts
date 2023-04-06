@@ -72,7 +72,7 @@ async function realTest(validateCharities: any, Charities: Charity, address : st
 			name,
 			true,
 			cid.toString(),
-			{	gasLimit: gasLimit }
+			{	gasLimit: 10000000 }
 		);
 	}catch(e){
 		console.log(e);
@@ -84,9 +84,9 @@ async function realTest(validateCharities: any, Charities: Charity, address : st
 
 
 async function main() { 
-    const ValidateCharity = await ethers.getContractFactory("ValidateCharities");
+    const ValidateCharity = await ethers.getContractFactory("RequestCharities");
 	const validateCharities = ValidateCharity.attach(
-		"0xF5C8fF7325Ef10fc6AF54Ddc38A80908932bb7b4"
+		"0xF166d4cD88957d5e7b2aB56cf45240f67C838499"
 	);
 	const data: any = await getAllCharities();
 	let Charities : Charity[] = [];
@@ -122,18 +122,13 @@ async function main() {
 		const cid = await storeFiles(files);
 		
 		try{
-			const gasLimit = await validateCharities.estimateGas.initCharity(
-			ethers.Wallet.createRandom().address,
-			Charities[i].tags[0],
-			true,
-			cid.toString()
-			);
+			
 			const tx = await validateCharities.initCharity(
 				ethers.Wallet.createRandom().address,
 				Charities[i].tags[0],
 				true,
 				cid.toString(),
-				{	gasLimit: gasLimit }
+				{	gasLimit: 10000000 }
 			);
 			console.log(tx.hash)
 		}catch(e){

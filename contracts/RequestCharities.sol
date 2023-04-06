@@ -1,69 +1,84 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity >0.7.0 <=0.8.18;
-import "./Counters.sol";
-import "./CharityRegistry.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
-contract ValidateCharities {
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+import "./ICharityRegistry.sol";
+
+contract RequestCharities is ReentrancyGuard {
     using Counters for Counters.Counter;
-    address public owner;
+    
+    address payable public owner;
 
-    address public charityRegistry;
+    ICharityRegistry public charityRegistry;
 
     mapping (address => bool) public validators;
     mapping (uint256 => CharitySnapshot) public charities;
     Counters.Counter private _validatorCount;
     Counters.Counter private _charityIds;
+    
     constructor() payable {
-        owner = msg.sender;
+        owner = payable(msg.sender);
         validators[msg.sender] = true;
         _validatorCount.increment();
     }
-    //event Charity(address charityAddress, string name, uint256 charityId, string info, CharityStatus status);
+
     event CharityCreated(address charityAddress, string name, uint256 charityId, string info, CharityStatus status);
     event CharityApproved(uint256 charityId,address charityAddress, string name,CharityStatus status );
     event CharityDisapproved(address charityAddress,uint256 charityId, string name,CharityStatus status );
     event ApproveVote(address validator, uint256 charityId);
     event DisapproveVote(address validator, uint256 charityId);
+
     enum CharityStatus {
         Pending, Disapproved, Approved
     }
+
     struct CharitySnapshot {
         string name;
-        uint256 charityId; // from mongodb _id
-        address walletAddress; // might not have one, if not it will be address(0)
-        string info; // info stored ipfs
-        bool ownsWallet; // if true, then the wallet address is theirs
+        uint256 charityId;
+        address walletAddress;
+        string info;
+        bool ownsWallet;
         CharityStatus status;
     }
 
-    // ========== Validator System ================
-    // have a way to require that only validators can do certain things
     function getValidatorCount() public view returns (uint256){
         return _validatorCount.current();
     }
+    
     modifier onlyValidator() {
         require(validators[msg.sender] || msg.sender == owner, "Only validators can do this action");_;
     }
+    
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can do this action");_;
     }
-    modifier votingProcess(uint256 charity) {
-        
-
-        _; // Continue executing the function
+    
+    modifier hasCharityRegistry() {
+        require(address(charityRegistry) != address(0), "Charity registry not set");
+        _;
     }
 
-    function addValidator(address newValidator) external onlyValidator{
-        if (validators[newValidator] == false){
+    function setCharityRegistry(address _charityRegistry) external onlyOwner {
+        charityRegistry = ICharityRegistry(_charityRegistry);
+    }
 
+    function changeOwner(address payable newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner cannot be the zero address");
+        owner = newOwner;
+    }
+
+    function addValidator(address newValidator) external onlyValidator {
+        if (validators[newValidator] == false) {
             _validatorCount.increment();
             validators[newValidator] = true;
-        }
-        else{
+        } else {
             revert("Validator already exists");
         }
     }
-    function removeValidator(address removingValidator) external onlyValidator{
+
+    function removeValidator(address removingValidator) external onlyValidator {
         _validatorCount.decrement();
         validators[removingValidator] = false;
     }
@@ -81,19 +96,16 @@ contract ValidateCharities {
         require(!validatorToCharity[validator][charityId], "Validator has already voted for this charity");
         _;
     }
-    function getCharities() public view returns (CharitySnapshot[] memory){
-        // returns all charities
-        CharitySnapshot[] memory _charities = new CharitySnapshot[](_charityIds.current());
-        for (uint256 i = 0; i < _charityIds.current(); i++) {
-            _charities[i] = charities[i];
-        }
-        return _charities;
-    }
+ 
     function getCharityStatus(uint256 charityId) public view returns (CharityStatus) {
         // returns the status of a charity
         return charities[charityId].status;
     }
     function initCharity (address walletAddress, string memory name, bool ownsWallet, string memory _info ) public onlyValidator{
+        require(walletAddress != address(0), "Invalid wallet address");
+        require(bytes(name).length > 0 && bytes(name).length <= 100, "Invalid charity name length");
+        
+
         //check if any charity already has this name
         for (uint256 i = 1; i <= _charityIds.current(); i++) {
             if (keccak256(abi.encodePacked(charities[i].name)) == keccak256(abi.encodePacked(name)) || charities[i].walletAddress == walletAddress){
@@ -103,20 +115,22 @@ contract ValidateCharities {
         _charityIds.increment();
 
         uint256 newItemId = _charityIds.current();
-        CharitySnapshot memory charity = CharitySnapshot({
-            name:name,
-            charityId: newItemId,
-            walletAddress: walletAddress,
-            info: _info,
-            ownsWallet: ownsWallet,
-            status: CharityStatus.Pending
-        });
-        charities[newItemId] = charity;
+
+        CharitySnapshot storage newcharity = charities[newItemId];
+        
+        newcharity.name=name;
+        newcharity.charityId= newItemId;
+        newcharity.walletAddress= walletAddress;
+        newcharity.info= _info;
+        newcharity.ownsWallet= ownsWallet;
+        newcharity.status= CharityStatus.Pending;
+    
+        
         emit CharityCreated(walletAddress, name, newItemId, _info, CharityStatus.Pending);
         //emit Charity(walletAddress, name, newItemId, _info, CharityStatus.Pending);
     }
 
-    function vote(uint256 charityId, bool votedApprove) public onlyValidator notVoted(msg.sender, charityId){
+    function vote(uint256 charityId, bool votedApprove) public nonReentrant onlyValidator notVoted(msg.sender, charityId){
         require(charities[charityId].status == CharityStatus.Pending, "Charity is not pending, Cannot vote on it");
         validatorToCharity[msg.sender][charityId] = votedApprove;
         if (votedApprove){
@@ -132,7 +146,7 @@ contract ValidateCharities {
     function getVotes(uint256 charityId) public view returns (uint256, uint256){
         return (approveVotes[charityId], disapproveVotes[charityId]);
     }
-    function resolveCharity(uint256 charityId) public onlyValidator{
+    function resolveCharity(uint256 charityId) public hasCharityRegistry onlyValidator{
         uint256 totalValidators = _validatorCount.current();
         uint256 votesCount = approveVotes[charityId] + disapproveVotes[charityId];
         uint256 approvalsCount = approveVotes[charityId];
@@ -142,10 +156,9 @@ contract ValidateCharities {
         if((approvalsCount * 100 / votesCount) > 75){
             charities[charityId].status = CharityStatus.Approved;
 
-            CharityRegistry charityRegistryContract = CharityRegistry(charityRegistry);
             string memory name = charities[charityId].name;
             address wallet = charities[charityId].walletAddress;
-            charityRegistryContract.addCharity(charityId,name, wallet, charities[charityId].info );
+            charityRegistry.addCharity(charityId,name, wallet, charities[charityId].info );
 
             emit CharityApproved(charityId, charities[charityId].walletAddress, charities[charityId].name,  CharityStatus.Approved);
             //emit Charity(charities[charityId].walletAddress, charities[charityId].name,charityId, charities[charityId].info, CharityStatus.Approved);
@@ -155,11 +168,12 @@ contract ValidateCharities {
             emit CharityDisapproved( charities[charityId].walletAddress,charityId, charities[charityId].name, CharityStatus.Disapproved);
             //emit Charity(charities[charityId].walletAddress, charities[charityId].name,charityId, charities[charityId].info, CharityStatus.Disapproved);
         }
+        
+    }
 
-        
-        
+    function addTokenToWhitelist(address token) public hasCharityRegistry onlyValidator{
+        charityRegistry.addTokenToWhitelist(token);
     }
-    function setCharityRegistry(address _charityRegistry) external onlyOwner{
-        charityRegistry = _charityRegistry;
-    }
+
+ 
 }

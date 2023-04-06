@@ -1,0 +1,22 @@
+{
+    "Charity": {
+        "name": "string",
+        "address": "string",
+        "images": "string[]",
+        "location": "string",
+        "description": "string",
+        "website": "string",
+        "tags": "string[]",
+        "ein": "string",
+        "email": "string",
+        "aditionalInfo": "string",
+        "phone": "string",
+        "Validation": "Validation"
+    },
+
+    "Validation" : {
+        "Validated" : "boolean",
+        "Comments" : "string",
+        "ValidationDate" : "string"
+    }
+}
