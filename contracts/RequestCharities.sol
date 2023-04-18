@@ -101,7 +101,7 @@ contract RequestCharities is ReentrancyGuard {
         // returns the status of a charity
         return charities[charityId].status;
     }
-    function initCharity (address walletAddress, string memory name, bool ownsWallet, string memory _info ) public onlyValidator{
+    function initCharity (address walletAddress, string memory name, bool ownsWallet, string memory _info ) public {
         require(walletAddress != address(0), "Invalid wallet address");
         require(bytes(name).length > 0 && bytes(name).length <= 100, "Invalid charity name length");
         
