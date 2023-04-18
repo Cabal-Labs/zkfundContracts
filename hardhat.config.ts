@@ -10,11 +10,11 @@ const config: HardhatUserConfig = {
   networks: {
     goerli: {
       
-      url: `https://eth-goerli.g.alchemy.com/v2/tb14Hsk3uF7yilSybLouN-sdaLnsC_DD`,
+      url: ``,
       accounts: [PRIVATE_KEY]
     },
     mumbai: {
-      url: `https://polygon-mumbai.infura.io/v3/fd71bb96e10248c6a49bed5bc7a16516`,
+      url: ``,
       accounts: [PRIVATE_KEY]
     }
   }
